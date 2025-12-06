@@ -1,10 +1,10 @@
-## 🌸 3D 粒子交互系统
+##  3D 粒子交互系统
 
 芙芙可爱喵~
 
 [立即体验](https://titroupast.github.io/threejs-particles/)
 
-[博客链接]()
+[博客链接](https://titroupast.github.io/fufu_Blog/2025/12/06/3D%E7%B2%92%E5%AD%90%E4%BA%A4%E4%BA%92%E7%B3%BB%E7%BB%9F/)
 
 [GitHub链接](https://github.com/Titroupast/threejs-particles)
 
@@ -86,7 +86,7 @@ python particle_manager.py
 #### 2. 使用步骤 (新增模型)
 
 1. **选择项目根目录**: 点击 **[选择文件夹]**，选择包含 `index.html` 的目录。管理器会自动创建 `models` 文件夹。
-2. **选择源图片**: 点击 **[选择图片]**，选择一张您想要转换的 **PNG (推荐透明背景)** 或 JPG 图片。
+2. **选择源图片**: 点击**[选择图片]**，选择一张您想要转换的 **PNG (推荐透明背景)** 或 JPG 图片。
 3. **填写信息**: 输入 **名称 (中文)** 和 **ID (英文)**，ID 将用于生成文件名和 JS 键名。
 4. **调整粒子数**: 使用滑块调整生成粒子的数量。
 5. **生成并注入**: 点击 **[⚡ 生成并注入到 models 文件夹 ⚡]**，工具将生成 `[ID]_data.js` 文件，并自动修改 `index.html`。
