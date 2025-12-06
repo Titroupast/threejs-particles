@@ -8,7 +8,7 @@
 
 [GitHub链接](https://github.com/Titroupast/threejs-particles)
 
-![8843670064bd7936ac2278c51ebe422e](https://gastigado.cnies.org/d/public/8843670064bd7936ac2278c51ebe422e.png)
+![8843670064bd7936ac2278c51ebe422e](https://gastigado.cnies.org/d/public/8843670064bd7936ac2278c51ebe422e.jpg)
 
 ### 🎀 项目简介 (Project Overview)
 
