@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 手势粒子交互 - 慢速自旋与隐藏UI</title>
+    <title>3D 手势粒子交互</title>
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚛️</text></svg>">
     
@@ -42,7 +42,7 @@
         }
 
         #ui-panel.hidden {
-            transform: translateX(calc(-100% - 30px)); /* 隐藏到左侧屏幕外 */
+            transform: translateX(calc(-100% - 30px));
             opacity: 0;
         }
 
@@ -90,7 +90,6 @@
             margin-bottom: 15px;
         }
 
-        /* 颜色选择器样式 */
         .color-grid {
             display: flex;
             flex-wrap: wrap;
@@ -136,7 +135,6 @@
             box-shadow: 0 0 15px rgba(255, 0, 204, 0.4);
         }
         
-        /* 隐藏/全屏按钮容器 */
         #top-right-controls {
             position: absolute;
             top: 20px;
@@ -173,6 +171,54 @@
             text-shadow: 0 0 10px rgba(255, 0, 204, 0.5);
             text-align: center;
         }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--primary-color);
+            font-size: 24px;
+            z-index: 200;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(255, 0, 204, 0.5);
+            text-align: center;
+        }
+
+        /* 👇👇👇 这里是必须补上的关键代码 👇👇👇 */
+        /* 限制高度并开启滚动，没有这一段，滚动条出不来 */
+        #image-model-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* 两列布局 */
+            gap: 8px;
+            margin-bottom: 15px;
+            
+            /* 关键限制 */
+            max-height: 200px;       /* 超过 200px 高度就开始滚动 */
+            overflow-y: auto;        /* 开启垂直滚动 */
+            padding-right: 5px;      /* 防止滚动条遮挡文字 */
+            align-content: start;
+        }
+        /* 👆👆👆 补上这一段 👆👆👆 */
+
+        /* --- 滚动条美化 (你刚才发的这部分是对的) --- */
+        #image-model-container::-webkit-scrollbar {
+            width: 6px; 
+        }
+
+        #image-model-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05); 
+            border-radius: 3px;
+        }
+
+        #image-model-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 0, 204, 0.3); 
+            border-radius: 3px;
+            transition: background 0.3s;
+        }
+
+        #image-model-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 0, 204, 0.8); 
+        }
     </style>
     
     <script src="https://unpkg.com/three@0.132.2/build/three.min.js"></script>
@@ -180,6 +226,23 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <!-- 🌟 请在这里引入你 Python 生成的文件 (例如 new_model_data.js) -->
+    <!-- 如果你有旧的 data 文件，可以注释掉 -->
+    
+    <script src="./models/fufu_001_data.js"></script>
+    <script src="./models/fufu_002_data.js"></script>
+    <script src="./models/fufu_003_data.js"></script>
+    <script src="./models/fufu_004_data.js"></script>
+    <script src="./models/fufu_005_data.js"></script>
+    <script src="./models/fufu_006_data.js"></script>
+    <script src="./models/fufu_007_data.js"></script>
+    <script src="./models/fufu_008_data.js"></script>
+    <script src="./models/fufu_009_data.js"></script>
+    <script src="./models/fufu_010_data.js"></script>
+    <script src="./models/fufu_011_data.js"></script>
+    <script src="./models/fufu_012_data.js"></script>
+    <script src="./models/fufu_013_data.js"></script>
 </head>
 <body>
 
@@ -211,12 +274,17 @@
                 <button class="shape-btn" data-shape="flower">🌸 花朵</button>
                 <button class="shape-btn" data-shape="fireworks">🎆 烟花</button>
             </div>
+            
+            <!-- 外部模型区域，会自动填充 -->
+            <label style="margin-top: 15px; display: none;" id="image-model-label">自定义模型</label>
+            <div class="shape-grid" id="image-model-container" style="display: none;">
+            </div>
         </div>
 
         <div class="control-group">
-            <label>粒子颜色</label>
+            <label>粒子颜色 (仅标准形状有效)</label>
             <div class="color-grid" id="color-options-container">
-                </div>
+            </div>
         </div>
 
         <div class="control-group">
@@ -229,7 +297,7 @@
     </div>
 
     <script>
-        // --- 颜色配置 ---
+        // --- 全局变量配置 ---
         const PRESET_COLORS = {
             'Elysia Pink': '#ff00cc',
             'Sky Blue': '#00bfff',
@@ -239,11 +307,14 @@
             'Deep Purple': '#8a2be2'
         };
         const DEFAULT_COLOR_HEX = PRESET_COLORS['Elysia Pink'];
-        const AUTO_ROTATION_SPEED = 0.001; // 慢速自旋，你要求的！
-
+        const AUTO_ROTATION_SPEED = 0.001; 
+    
         let scene, camera, renderer, particles;
         let geometry, material;
-        const PARTICLE_COUNT = 15000;
+        
+        // 动态状态变量
+        let currentParticleCount = 15000; 
+        let usingImageColors = false; // 是否正在使用图片自带的颜色
         let currentShape = 'heart';
         let targetPositions = [];
         
@@ -254,11 +325,15 @@
         let userColor = new THREE.Color(DEFAULT_COLOR_HEX); 
         const explodeColor = new THREE.Color(0xffffff);
         let currentColor = new THREE.Color(DEFAULT_COLOR_HEX);
-
+        
+        // 初始化外部模型存储对象 (防止未定义报错)
+        window.IMAGE_MODELS = window.IMAGE_MODELS || {};
+    
+        // 🌟 核心：形状定义 (已修复参数问题)
         const Shapes = {
-            heart: () => {
+            heart: (count) => {
                 const arr = [];
-                for(let i=0; i<PARTICLE_COUNT; i++) {
+                for(let i=0; i<count; i++) { 
                     let t = Math.random() * Math.PI * 2;
                     let r = Math.sqrt(Math.random()); 
                     let x = 16 * Math.pow(Math.sin(t), 3);
@@ -268,10 +343,10 @@
                 }
                 return arr;
             },
-            saturn: () => {
+            saturn: (count) => {
                 const arr = [];
-                const sphereCount = Math.floor(PARTICLE_COUNT * 0.6);
-                const ringCount = PARTICLE_COUNT - sphereCount;
+                const sphereCount = Math.floor(count * 0.6);
+                const ringCount = count - sphereCount;
                 for(let i=0; i<sphereCount; i++) {
                     const phi = Math.acos( -1 + ( 2 * i ) / sphereCount );
                     const theta = Math.sqrt( sphereCount * Math.PI ) * phi;
@@ -285,10 +360,10 @@
                 }
                 return arr;
             },
-            flower: () => {
+            flower: (count) => {
                 const arr = [];
                 const k = 3; 
-                for(let i=0; i<PARTICLE_COUNT; i++) {
+                for(let i=0; i<count; i++) { 
                     const theta = Math.random() * Math.PI * 2;
                     const r = Math.cos(k * theta) * 10;
                     const x = r * Math.cos(theta);
@@ -298,9 +373,9 @@
                 }
                 return arr;
             },
-            fireworks: () => {
+            fireworks: (count) => {
                 const arr = [];
-                for(let i=0; i<PARTICLE_COUNT; i++) {
+                for(let i=0; i<count; i++) { 
                     const u = Math.random();
                     const v = Math.random();
                     const theta = 2 * Math.PI * u;
@@ -309,73 +384,47 @@
                     arr.push(r * Math.sin(phi) * Math.cos(theta), r * r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
                 }
                 return arr;
+            },
+            // 读取外部图片模型
+            image: (modelKey) => {
+                const model = window.IMAGE_MODELS[modelKey];
+                if (model) {
+                    return Array.from(model.positions); 
+                }
+                return Shapes.heart(currentParticleCount); 
             }
         };
-
-        function initThree() {
-            scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x050505, 0.02);
-
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.z = 30;
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            document.body.appendChild(renderer.domElement);
-
-            geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(PARTICLE_COUNT * 3);
-            for(let i=0; i<PARTICLE_COUNT*3; i++) {
-                positions[i] = (Math.random() - 0.5) * 100;
-            }
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            targetPositions = Shapes[currentShape]();
-
-            const sprite = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/disc.png');
-            material = new THREE.PointsMaterial({
-                color: userColor,
-                size: baseSize,
-                map: sprite,
-                sizeAttenuation: true,
-                transparent: true,
-                opacity: 0.8,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
-            });
-
-            particles = new THREE.Points(geometry, material);
-            scene.add(particles);
-
-            window.addEventListener('resize', onWindowResize);
-            animate();
-        }
-
+    
+        // 🌟 核心：动画循环
         function animate() {
             requestAnimationFrame(animate);
             const positions = particles.geometry.attributes.position.array;
             
             const moveSpeed = isExploding ? 0.06 : 0.05;
-
-            // --- 粒子自旋 (新要求) ---
-            // 无论是否有手势输入，都以极慢的速度自旋
             particles.rotation.y += AUTO_ROTATION_SPEED;
             
-            // 颜色处理
-            if (isExploding) {
-                currentColor.lerp(explodeColor, 0.1);
+            // --- 颜色逻辑 ---
+            if (!usingImageColors) {
+                // 普通模式：代码控制颜色变化
+                if (isExploding) {
+                    currentColor.lerp(explodeColor, 0.1);
+                } else {
+                    currentColor.lerp(userColor, 0.1);
+                }
+                material.color.set(currentColor);
             } else {
-                currentColor.lerp(userColor, 0.1);
+                // 图片模式：保持白色基础，让顶点颜色生效
+                material.color.setHex(0xffffff); 
             }
-            material.color.set(currentColor);
-
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
+    
+            // --- 位置逻辑 ---
+            for (let i = 0; i < currentParticleCount; i++) { 
                 const ix = i * 3;
                 const iy = i * 3 + 1;
                 const iz = i * 3 + 2;
-
+    
                 let tx, ty, tz;
-
+    
                 if (isExploding) {
                     const scatterRadius = 25; 
                     tx = Math.sin(i * 0.13) * scatterRadius + (Math.random() - 0.5) * 2;
@@ -386,7 +435,7 @@
                     ty = targetPositions[iy] * handScale;
                     tz = targetPositions[iz] * handScale;
                 }
-
+    
                 positions[ix] += (tx - positions[ix]) * moveSpeed;
                 positions[iy] += (ty - positions[iy]) * moveSpeed;
                 positions[iz] += (tz - positions[iz]) * moveSpeed;
@@ -399,52 +448,219 @@
             
             renderer.render(scene, camera);
         }
+        
+        // 🌟 核心：更新几何体 (修复了材质无法切换的 Bug)
+        function updateGeometry(newCount, newPositions, newColors) {
+            currentParticleCount = newCount;
+            
+            // 1. 清理旧对象
+            if (particles) {
+                scene.remove(particles);
+                if (particles.geometry) particles.geometry.dispose();
+                if (particles.material) particles.material.dispose();
+            }
+    
+            // 2. 准备新几何体
+            geometry = new THREE.BufferGeometry();
+            let positionsArray;
+            
+            if (newPositions && newPositions.length === newCount * 3) {
+                positionsArray = new Float32Array(newPositions);
+            } else {
+                positionsArray = new Float32Array(newCount * 3);
+                for(let i=0; i<newCount*3; i++) {
+                    positionsArray[i] = (Math.random() - 0.5) * 100; // 随机初始位
+                }
+            }
+            geometry.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
+            
+            // 3. 判断是否使用顶点颜色
+            const useVertexColors = (newColors && newColors.length === newCount * 3);
+            usingImageColors = useVertexColors;
+    
+            // 4. 创建材质 (关键修复)
+            const sprite = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/disc.png');
+            material = new THREE.PointsMaterial({
+                color: useVertexColors ? 0xffffff : userColor,
+                size: baseSize * 5,
+                map: sprite,
+                sizeAttenuation: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                vertexColors: useVertexColors // 根据数据决定是否开启
+            });
+    
+            if (useVertexColors) {
+                geometry.setAttribute('color', new THREE.BufferAttribute(newColors, 3));
+            }
+            
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+    
+            // 5. 计算目标位置
+            if (currentShape.startsWith('image_')) {
+                const modelKey = currentShape.substring(6);
+                const model = window.IMAGE_MODELS[modelKey];
+                if(model) targetPositions = model.positions; 
+            } else if (currentShape in Shapes) {
+                targetPositions = Shapes[currentShape](newCount);
+            }
+            
+            console.log(`模型更新完成: ${currentShape}, 粒子数: ${newCount}, 顶点色: ${useVertexColors}`);
+        }
+        
+        // 🌟 核心：模型切换逻辑
+        function switchModel(shapeKey) {
+            console.log("正在切换模型:", shapeKey);
+            document.querySelectorAll('.shape-btn, .image-btn').forEach(b => b.classList.remove('active'));
+            
+            let newCount;
+            let newPositions = null;
+            let newColors = null; 
+            
+            if (shapeKey.startsWith('image_')) {
+                // 外部图片模式
+                const modelKey = shapeKey.substring(6); 
+                const model = window.IMAGE_MODELS[modelKey];
+                if (model) {
+                    newCount = model.count; 
+                    newPositions = model.positions;
+                    if (model.colors && model.colors.length > 0) {
+                        newColors = model.colors;
+                    }
+                    currentShape = shapeKey;
+                } else {
+                    console.error('未找到模型数据:', shapeKey);
+                    return; 
+                }
+            } else {
+                // 内置形状模式
+                newCount = 15000; 
+                newPositions = null; // 触发随机生成
+                newColors = null;    // 触发关闭顶点色
+                currentShape = shapeKey;
+            }
+            
+            const newActiveButton = document.querySelector(`[data-shape="${shapeKey}"]`);
+            if (newActiveButton) newActiveButton.classList.add('active');
+    
+            updateGeometry(newCount, newPositions, newColors);
+        }
+    
+        // --- UI 加载与交互 ---
+// --- UI 加载与交互 (修复版) ---
+function loadExternalModelsUI() {
+        const uiPanel = document.getElementById('ui-panel');
+        let label = uiPanel.querySelector('#image-model-label');
+        let container = uiPanel.querySelector('#image-model-container');
+        
+        container.innerHTML = ''; 
+        let hasExternalModels = false;
 
+        // 1. 加载外部模型按钮
+        Object.entries(window.IMAGE_MODELS).forEach(([key, model]) => {
+            hasExternalModels = true;
+            const button = document.createElement('button');
+            const shapeKey = 'image_' + key; 
+            button.className = 'shape-btn image-btn'; // 加上 image-btn 类以便区分
+            button.dataset.shape = shapeKey;
+            button.innerText = model.name || key; 
+            
+            // 绑定点击事件
+            button.addEventListener('click', () => switchModel(shapeKey));
+            
+            container.appendChild(button);
+        });
+        
+        // 显示/隐藏外部模型区域
+        if (hasExternalModels) {
+            label.style.display = 'block';
+            container.style.display = 'grid';
+        }
+        
+        // 🌟 2. 绑定内置按钮 (这里修复了之前的 Bug) 🌟
+        // 逻辑改为：选择所有 class 有 'shape-btn' 但没有 'image-btn' 的按钮
+        const builtInButtons = document.querySelectorAll('.shape-btn:not(.image-btn)');
+        
+        builtInButtons.forEach(btn => {
+            // 先移除旧事件，防止重复
+            if (btn._originalClickListener) {
+                btn.removeEventListener('click', btn._originalClickListener); 
+            }
+            
+            const listener = (e) => {
+                // 获取 data-shape 属性并切换
+                const shape = e.target.getAttribute('data-shape');
+                switchModel(shape);
+            };
+            
+            btn.addEventListener('click', listener);
+            btn._originalClickListener = listener; 
+        });
+        
+        // 3. 初始高亮当前按钮
+        const initialButton = document.querySelector(`[data-shape="${currentShape}"]`);
+        if (initialButton) initialButton.classList.add('active');
+    }
+    
+        // --- Three.js 初始化 ---
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050505, 0.02);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 30;
+    
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+            
+            // 初始加载
+            updateGeometry(15000, null, null);
+            loadExternalModelsUI();
+            
+            window.addEventListener('resize', onWindowResize);
+            animate(); 
+        }
+    
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
-
+    
+        // --- MediaPipe 手势识别 ---
         const videoElement = document.getElementsByClassName('input_video')[0];
         
         function onResults(results) {
             const loading = document.getElementById('loading');
             if(loading) loading.style.display = 'none';
-
             const statusDot = document.getElementById('status-dot');
             
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
                 const wrist = landmarks[0];
-
-                // --- 1. 伸直检测 (更严格) ---
+    
                 function isExtended(tipIdx, pipIdx) {
                     const tip = landmarks[tipIdx];
-                    const pip = landmarks[pipIdx];
+                    const pip = landmarks[tipIdx - 2]; 
                     const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
                     const dPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
                     return dTip > dPip * 1.25;
                 }
-
+    
                 const thumbUp = isExtended(4, 2);
                 const indexUp = isExtended(8, 6);
                 const middleUp = isExtended(12, 10);
                 const ringUp = isExtended(16, 14);
                 const pinkyUp = isExtended(20, 18);
-
-                // --- 2. 手指张开度检测 (松散模式) ---
-                const spreadDist = Math.hypot(
-                    landmarks[8].x - landmarks[20].x,
-                    landmarks[8].y - landmarks[20].y
-                );
-                const palmSize = Math.hypot(
-                    landmarks[0].x - landmarks[9].x,
-                    landmarks[0].y - landmarks[9].y
-                );
-                
+    
+                const spreadDist = Math.hypot(landmarks[8].x - landmarks[20].x, landmarks[8].y - landmarks[20].y);
+                const palmSize = Math.hypot(landmarks[0].x - landmarks[9].x, landmarks[0].y - landmarks[9].y);
                 const isSpread = spreadDist > palmSize * 0.9;
-
+    
                 if (thumbUp && indexUp && middleUp && ringUp && pinkyUp && isSpread) {
                     isExploding = true;
                     statusDot.className = 'status-dot active exploding';
@@ -452,112 +668,66 @@
                 } else {
                     isExploding = false;
                     statusDot.className = 'status-dot active';
-                    
-                    // --- 3. 捏合缩放检测 ---
                     const thumbTip = landmarks[4];
                     const indexTip = landmarks[8];
-                    const distance = Math.sqrt(
-                        Math.pow(thumbTip.x - indexTip.x, 2) +
-                        Math.pow(thumbTip.y - indexTip.y, 2)
-                    );
-
-                    const minDist = 0.02;
-                    const maxDist = 0.2;
-                    let normalized = (distance - minDist) / (maxDist - minDist);
-                    normalized = Math.max(0, Math.min(1, normalized)); 
-
+                    const distance = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+                    const normalized = Math.max(0, Math.min(1, (distance - 0.02) / 0.18)); 
                     const targetScale = 0.5 + normalized * 2.0;
                     handScale += (targetScale - handScale) * 0.1;
                 }
-
             } else {
                 statusDot.className = 'status-dot';
                 isExploding = false;
                 handScale += (1.0 - handScale) * 0.05;
             }
         }
-
-        const hands = new Hands({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-        }});
-        
+    
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 1,
             minDetectionConfidence: 0.5,
             minTrackingConfidence: 0.5
         });
-        
         hands.onResults(onResults);
-
+    
         const cameraUtils = new Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({image: videoElement});
-            },
+            onFrame: async () => await hands.send({image: videoElement}),
             width: 320,
             height: 240
         });
         cameraUtils.start();
-
-        // --- UI 交互逻辑 ---
-        
-        // 1. 形状按钮
-        document.querySelectorAll('.shape-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                currentShape = e.target.dataset.shape;
-                targetPositions = Shapes[currentShape]();
-            });
-        });
-
-        // 2. 颜色选择器
+    
+        // --- 颜色与按钮交互 ---
         const colorContainer = document.getElementById('color-options-container');
-
         Object.entries(PRESET_COLORS).forEach(([name, hex]) => {
             const div = document.createElement('div');
             div.className = 'color-option';
             div.style.backgroundColor = hex;
             div.title = name;
             div.setAttribute('data-color', hex);
-            
-            if (hex === DEFAULT_COLOR_HEX) {
-                div.classList.add('active');
-            }
-
+            if (hex === DEFAULT_COLOR_HEX) div.classList.add('active');
             div.addEventListener('click', () => {
                 document.querySelectorAll('.color-option').forEach(c => c.classList.remove('active'));
                 div.classList.add('active');
-                
                 userColor.set(hex); 
                 document.documentElement.style.setProperty('--primary-color', hex);
             });
             colorContainer.appendChild(div);
         });
         
-        // 3. 全屏按钮
         document.getElementById('fullscreen-btn').addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                document.body.requestFullscreen().catch(err => alert(`无法进入全屏: ${err.message}`));
-            } else {
-                document.exitFullscreen();
-            }
+            if (!document.fullscreenElement) document.body.requestFullscreen().catch(err => alert(`无法进入全屏: ${err.message}`));
+            else document.exitFullscreen();
         });
-
-        // 4. 隐藏/显示 UI 按钮 (新功能)
-        const uiPanel = document.getElementById('ui-panel');
+    
         const toggleUiBtn = document.getElementById('toggle-ui-btn');
-
         toggleUiBtn.addEventListener('click', () => {
-            const isHidden = uiPanel.classList.toggle('hidden');
-            // 根据状态切换按钮图标
+            const isHidden = document.getElementById('ui-panel').classList.toggle('hidden');
             toggleUiBtn.innerText = isHidden ? '➕' : '➖';
-            toggleUiBtn.title = isHidden ? '显示控制面板' : '隐藏控制面板';
         });
-
-
+    
         initThree();
-
     </script>
 </body>
 </html>
